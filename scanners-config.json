@@ -1,10 +1,14 @@
 [
   {
-    "name": "Bullish Breakout",
-    "url": "https://chartink.com/screener/bullish-breakout-123"
+    "name": "base Breakout",
+    "url": "https://chartink.com/screener/base-breakout-87"
   },
   {
-    "name": "Volume Shockers",
-    "url": "https://chartink.com/screener/volume-shockers-456"
+    "name": "accumulation by biggies",
+    "url": "https://chartink.com/screener/accumulation-by-biggies-pnp"
+  },
+  {
+    "name": "potential bo",
+    "url": "https://chartink.com/screener/potential-breakout-668"
   }
 ]
