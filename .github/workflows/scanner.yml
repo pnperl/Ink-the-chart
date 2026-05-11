@@ -12,13 +12,15 @@ jobs:
     timeout-minutes: 5 # Prevents hanging tasks
     
     steps:
+      # Updated to v4
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # Updated to v4
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20' # You can optionally change this to '22' or '24' if you want the absolute latest runtime
 
       - name: Install Dependencies
         run: npm install
@@ -27,5 +29,5 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PROXY_LIST: ${{ secrets.PROXY_LIST }} # Optional: Comma-separated list of proxies
+          PROXY_LIST: ${{ secrets.PROXY_LIST }} # Optional
         run: node index.js
