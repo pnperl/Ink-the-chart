@@ -1,0 +1,12 @@
+{
+  "name": "chartink-scanner-bot",
+  "version": "1.0.0",
+  "description": "5 Min Chartink Scanner with IP Rotation",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "https-proxy-agent": "^7.0.2",
+    "user-agents": "^1.1.25"
+  }
+}
