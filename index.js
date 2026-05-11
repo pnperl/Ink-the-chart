@@ -82,14 +82,36 @@ const sendTelegramAlert = async (message) => {
 };
 
 // --- 3. RESULT PROCESSING & MAIN EXECUTION ---
+// --- 3. RESULT PROCESSING & MAIN EXECUTION ---
 const main = async () => {
     const scanners = JSON.parse(fs.readFileSync('scanners-config.json', 'utf8'));
     const proxies = await getProxies();
     
-    let alertMessage = `🤖 *ChartLink 5-Min Update*\n\n`;
+    // --- STARTUP NOTIFICATION LOGIC ---
+    const now = new Date();
+    const startTimeStr = now.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    
+    // Create a Date object forced to IST to easily extract hours/minutes
+    const istTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const hours = istTime.getHours();
+    const minutes = istTime.getMinutes();
+    
+    // Check if it's the 9:15 AM run (allowing a window until 9:19 AM for GitHub delays)
+    const isFirstRunOfDay = (hours === 9 && minutes >= 15 && minutes < 20);
+    
+    // Check if you clicked the "Run Workflow" button manually
+    const isManualRun = process.env.GITHUB_TRIGGER_EVENT === 'workflow_dispatch';
+
+    // Only send the "Started" message if one of the conditions is met
+    if (isFirstRunOfDay || isManualRun) {
+        const reason = isManualRun ? "Manual Run" : "Market Open First Run";
+        await sendTelegramAlert(`🚀 *Scanner Bot Started* (${reason})\n⏱️ Time: ${startTimeStr}\n🔍 Checking ${scanners.length} scanners...`);
+    }
+    // ----------------------------------
+
+    let alertMessage = `🤖 *ChartLink Update Results*\n\n`;
     let foundResults = false;
 
-    // Process scanners (Batching up to 3 parallel requests can be done with Promise.all)
     for (const scanner of scanners) {
         console.log(`Scanning: ${scanner.name}...`);
         const stocks = await scrapeChartink(scanner.url, proxies);
@@ -97,7 +119,7 @@ const main = async () => {
         if (stocks && stocks.length > 0) {
             foundResults = true;
             alertMessage += `📊 *${scanner.name}* (${stocks.length})\n`;
-            // Get top 5 stock tickers
+            
             const tickers = stocks.slice(0, 5).map(s => `• ${s.nsecode}`).join('\n');
             alertMessage += `${tickers}\n${stocks.length > 5 ? `_+ ${stocks.length - 5} more..._\n` : ''}\n`;
         }
