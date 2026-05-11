@@ -17,60 +17,74 @@ const getProxies = async () => {
     }
 };
 
-// --- 2. CHARTINK SCRAPING (Direct First, then Sequential Proxy Fallback) ---
-const scrapeChartink = async (scannerUrl, proxies) => {
+// --- 2. CHARTINK SCRAPING (Direct 
+const { gotScraping } = require('got-scraping');
+
+// --- 2. CHARTINK SCRAPING (Stealth Mode) ---
+const scrapeChartink = async (scannerUrl) => {
     let attempt = 0;
-    // We try 1 Direct connection + up to 2 proxies (Total 3 attempts max)
-    const maxAttempts = Math.min(3, proxies.length + 1); 
+    const maxAttempts = 3; 
     
     while (attempt < maxAttempts) {
-        // ATTEMPT 0: Direct Connection (null)
-        // ATTEMPT 1+: Proxy Connection (proxies[0], proxies[1], etc.)
-        const proxy = attempt === 0 ? null : (proxies.length >= attempt ? proxies[attempt - 1] : null);
-        
-        // Setup agents
-        const httpsAgent = proxy ? new HttpsProxyAgent(`http://${proxy}`) : undefined;
-        const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
-        
         try {
-            const client = axios.create({ httpsAgent, headers: { 'User-Agent': userAgent } });
+            console.log(`Attempt ${attempt + 1}: Fetching via stealth browser fingerprint...`);
             
-            // Step 1: Fetch Page & CSRF Token
-            const pageRes = await client.get(scannerUrl);
-            const $ = cheerio.load(pageRes.data);
-            const csrfToken = $('meta[name="csrf-token"]').attr('content');
-            const scanClause = $('#scan_clause').text().trim();
-
-            if (!csrfToken || !scanClause) throw new Error("Could not extract token/clause");
-
-            // Step 2: Post to processor
-            const formData = new URLSearchParams();
-            formData.append('scan_clause', scanClause);
-            
-            const resultsRes = await client.post('https://chartink.com/screener/process', formData.toString(), {
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/x-www-form-urlencoded'
+            // Step 1: Fetch Page & CSRF Token using gotScraping
+            // This mimics Google Chrome's exact TLS signature
+            const pageRes = await gotScraping({
+                url: scannerUrl,
+                method: 'GET',
+                headerGeneratorOptions: {
+                    browsers: [{name: 'chrome', minVersion: 110}],
+                    devices: ['desktop', 'mobile'],
+                    operatingSystems: ['windows', 'android']
                 }
             });
 
-            return resultsRes.data.data; 
+            const $ = cheerio.load(pageRes.body);
+            const csrfToken = $('meta[name="csrf-token"]').attr('content');
+            const scanClause = $('#scan_clause').text().trim();
+
+            if (!csrfToken || !scanClause) {
+                console.log("Blocked: Could not extract CSRF token. Cloudflare challenge active.");
+                throw new Error("Missing Token");
+            }
+
+            // Step 2: Post to processor
+            const resultsRes = await gotScraping({
+                url: 'https://chartink.com/screener/process',
+                method: 'POST',
+                form: {
+                    scan_clause: scanClause
+                },
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Origin': 'https://chartink.com',
+                    'Referer': scannerUrl
+                },
+                headerGeneratorOptions: {
+                    browsers: [{name: 'chrome', minVersion: 110}]
+                }
+            });
+
+            // gotScraping returns the body as a string, parse it to JSON
+            const data = JSON.parse(resultsRes.body);
+            return data.data; 
             
         } catch (error) {
             attempt++;
             if (attempt < maxAttempts) {
-                const failedIp = attempt === 1 ? 'Direct IP' : proxy;
-                console.log(`Failed with ${failedIp}. Switching to fallback proxy #${attempt}...`);
-                await new Promise(r => setTimeout(r, 2000)); // 2-second wait before trying the next proxy
+                console.log(`Failed. Retrying in 2 seconds...`);
+                await new Promise(r => setTimeout(r, 2000)); 
             } else {
-                console.log(`All ${maxAttempts} attempts failed for this scanner.`);
+                console.log(`All ${maxAttempts} attempts failed. Cloudflare is blocking the request.`);
             }
         }
     }
     return null;
-};
-
+};       
+            
 // --- 3. TELEGRAM ALERT ---
 const sendTelegramAlert = async (message) => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
