@@ -8,7 +8,6 @@ const fs = require('fs');
 const getProxies = async () => {
     if (process.env.PROXY_LIST) return process.env.PROXY_LIST.split(',');
     
-    // Auto-fallback: Fetch free proxies if none provided in secrets
     try {
         const res = await axios.get('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all');
         return res.data.split('\r\n').filter(p => p);
@@ -18,26 +17,27 @@ const getProxies = async () => {
     }
 };
 
-const getRandomAgent = (proxies) => {
-    const proxy = proxies.length > 0 ? proxies[Math.floor(Math.random() * proxies.length)] : null;
-    const httpsAgent = proxy ? new HttpsProxyAgent(`http://${proxy}`) : undefined;
-    const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
-    return { httpsAgent, userAgent, proxy };
-};
-
-// --- 2. CHARTINK SCRAPING ---
+// --- 2. CHARTINK SCRAPING (Sequential Fallback) ---
 const scrapeChartink = async (scannerUrl, proxies) => {
-    let retries = 3;
+    let attempt = 0;
+    const maxAttempts = 3; 
     
-    while (retries > 0) {
-        const { httpsAgent, userAgent, proxy } = getRandomAgent(proxies);
+    while (attempt < maxAttempts) {
+        // Attempt 0 uses proxies[0] (Default). Attempt 1 uses proxies[1], etc.
+        const proxy = (proxies.length > attempt) ? proxies[attempt] : null;
+        
+        // Setup agents
+        const httpsAgent = proxy ? new HttpsProxyAgent(`http://${proxy}`) : undefined;
+        const userAgent = new UserAgent({ deviceCategory: 'desktop' }).toString();
+        
         try {
-            // Step 1: Get CSRF token (Chartink requires this for POST requests)
             const client = axios.create({ httpsAgent, headers: { 'User-Agent': userAgent } });
+            
+            // Step 1: Fetch Page & CSRF Token
             const pageRes = await client.get(scannerUrl);
             const $ = cheerio.load(pageRes.data);
             const csrfToken = $('meta[name="csrf-token"]').attr('content');
-            const scanClause = $('#scan_clause').text().trim(); // Extracts the hidden query
+            const scanClause = $('#scan_clause').text().trim();
 
             if (!csrfToken || !scanClause) throw new Error("Could not extract token/clause");
 
@@ -53,17 +53,22 @@ const scrapeChartink = async (scannerUrl, proxies) => {
                 }
             });
 
-            return resultsRes.data.data; // Returns array of matched stocks
+            return resultsRes.data.data; 
+            
         } catch (error) {
-            console.log(`Failed with proxy ${proxy || 'direct'}. Retrying... (${retries} left)`);
-            retries--;
-            await new Promise(r => setTimeout(r, 2000)); // 2s Backoff
+            attempt++;
+            if (attempt < maxAttempts) {
+                console.log(`Failed with ${proxy || 'Default IP'}. Switching to fallback proxy #${attempt}...`);
+                await new Promise(r => setTimeout(r, 2000)); // 2-second wait before trying the next proxy
+            } else {
+                console.log(`All ${maxAttempts} attempts failed for this scanner.`);
+            }
         }
     }
     return null;
 };
 
-// --- 4. TELEGRAM ALERT ---
+// --- 3. TELEGRAM ALERT ---
 const sendTelegramAlert = async (message) => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -81,8 +86,7 @@ const sendTelegramAlert = async (message) => {
     }
 };
 
-// --- 3. RESULT PROCESSING & MAIN EXECUTION ---
-// --- 3. RESULT PROCESSING & MAIN EXECUTION ---
+// --- 4. RESULT PROCESSING & MAIN EXECUTION ---
 const main = async () => {
     const scanners = JSON.parse(fs.readFileSync('scanners-config.json', 'utf8'));
     const proxies = await getProxies();
@@ -112,6 +116,7 @@ const main = async () => {
     let alertMessage = `🤖 *ChartLink Update Results*\n\n`;
     let foundResults = false;
 
+    // Process scanners
     for (const scanner of scanners) {
         console.log(`Scanning: ${scanner.name}...`);
         const stocks = await scrapeChartink(scanner.url, proxies);
@@ -120,11 +125,13 @@ const main = async () => {
             foundResults = true;
             alertMessage += `📊 *${scanner.name}* (${stocks.length})\n`;
             
+            // Get top 5 stock tickers
             const tickers = stocks.slice(0, 5).map(s => `• ${s.nsecode}`).join('\n');
             alertMessage += `${tickers}\n${stocks.length > 5 ? `_+ ${stocks.length - 5} more..._\n` : ''}\n`;
         }
     }
 
+    // Send final results only if stocks matched
     if (foundResults) {
         await sendTelegramAlert(alertMessage);
     } else {
