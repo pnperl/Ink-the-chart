@@ -5,14 +5,12 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
-# Fixes the Node 20 deprecation warning globally for this workflow
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   run-scanner:
     runs-on: ubuntu-latest
-    # Increased from 5 to 15 minutes to allow proxies time to retry
     timeout-minutes: 15 
     
     steps:
@@ -22,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24' # Explicitly using Node 24
+          node-version: '24'
 
       - name: Install Dependencies
         run: npm install
@@ -32,4 +30,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PROXY_LIST: ${{ secrets.PROXY_LIST }}
+          # NEW: Passes 'workflow_dispatch' (manual) or 'schedule' (cron)
+          GITHUB_TRIGGER_EVENT: ${{ github.event_name }} 
         run: node index.js
