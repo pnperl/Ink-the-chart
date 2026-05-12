@@ -1,0 +1,26 @@
+{
+  "name": "chartink-scanner-bot",
+  "version": "1.0.0",
+  "description": "ChartLink Scanner Telegram Alert Bot with IP Rotation",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "cd scripts && node test.js",
+    "scrape": "cd scripts && node chartink-scraper.js",
+    "rotate": "cd scripts && node proxy-rotator.js",
+    "process": "cd scripts && node result-processor.js",
+    "send": "cd scripts && node telegram-sender.js"
+  },
+  "keywords": [
+    "chartink",
+    "scanner",
+    "telegram",
+    "alerts",
+    "trading",
+    "ip-rotation"
+  ],
+  "author": "CodenameP",
+  "license": "MIT"
+}
