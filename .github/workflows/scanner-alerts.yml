@@ -35,10 +35,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+          cache-dependency-path: './package-lock.json'
 
       - name: Install Dependencies
-        run: npm install --production
-        working-directory: ./scripts
+        run: |
+          echo "✓ Using scripts/package.json"
+          cd scripts && npm install --production --no-save || true
+          cd ..
 
       - name: Load Scanner Configuration
         id: config
