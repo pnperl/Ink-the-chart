@@ -9,9 +9,12 @@
  * - Request header rotation for stealth
  */
 
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PROXY_STATE_FILE = path.join(__dirname, '../.github/workflows/proxy-state.json');
 const FREE_PROXY_POOLS = [
@@ -185,6 +188,15 @@ class ProxyRotator {
   }
 }
 
+
+function setOutput(name, value) {
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+    return;
+  }
+  console.log(`::set-output name=${name}::${value}`);
+}
+
 async function main() {
   try {
     const rotator = new ProxyRotator();
@@ -194,10 +206,10 @@ async function main() {
     const headers = rotator.getRequestHeaders();
 
     // Export for use in next steps
-    console.log('::set-output name=proxy_used::' + (proxy || 'DIRECT'));
-    console.log('::set-output name=proxy_url::' + (proxy || ''));
-    console.log('::set-output name=rotation_count::' + rotator.state.rotationCount);
-    console.log('::set-output name=blocked_count::' + rotator.state.blockedProxies.length);
+    setOutput('proxy_used', proxy || 'DIRECT');
+    setOutput('proxy_url', proxy || '');
+    setOutput('rotation_count', rotator.state.rotationCount);
+    setOutput('blocked_count', rotator.state.blockedProxies.length);
 
     // Save headers for scraper to use
     fs.writeFileSync(
