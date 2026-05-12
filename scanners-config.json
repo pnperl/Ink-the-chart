@@ -5,7 +5,7 @@
     {
       "id": "nifty_50_bullish",
       "name": "Nifty 50 Bullish Breakout",
-      "url": "https://chartink.com/screener/my-scanner-1",
+      "url": "https://chartink.com/screener/base-breakout-87",
       "enabled": true,
       "alertOn": "count_change",
       "threshold": {
@@ -18,7 +18,7 @@
     {
       "id": "midcap_momentum",
       "name": "Midcap Momentum Play",
-      "url": "https://chartink.com/screener/my-scanner-2",
+      "url": "https://chartink.com/screener/potential-breakout-668",
       "enabled": true,
       "alertOn": "count_change",
       "threshold": {
@@ -31,7 +31,7 @@
     {
       "id": "smallcap_breakout",
       "name": "Smallcap Breakout Scanner",
-      "url": "https://chartink.com/screener/my-scanner-3",
+      "url": "https://chartink.com/screener/accumulation-by-biggies-pnp",
       "enabled": true,
       "alertOn": "count_increase",
       "threshold": {
@@ -39,18 +39,6 @@
       },
       "telegramAlert": true,
       "priority": "MEDIUM"
-    },
-    {
-      "id": "options_iv_spike",
-      "name": "Options IV Spike Detector",
-      "url": "https://chartink.com/screener/my-scanner-4",
-      "enabled": true,
-      "alertOn": "threshold_breach",
-      "threshold": {
-        "value": 10
-      },
-      "telegramAlert": true,
-      "priority": "HIGH"
     }
   ],
   "retryPolicy": {
