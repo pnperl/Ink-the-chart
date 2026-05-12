@@ -1,0 +1,103 @@
+name: ChartLink Scanner Alerts with IP Rotation
+
+on:
+  schedule:
+    # Every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      testMode:
+        description: 'Run in test mode (no alert sent)'
+        required: false
+        default: 'false'
+
+jobs:
+  scanner-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    
+    strategy:
+      matrix:
+        node-version: [18.x]
+    
+    permissions:
+      contents: read
+      repository-projects: read
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --production
+        working-directory: ./scripts
+
+      - name: Load Scanner Configuration
+        id: config
+        run: |
+          echo "Loading scanner configurations..."
+          cat scanners-config.json
+        working-directory: ./
+
+      - name: Rotate Proxy IP Pool
+        id: proxy
+        env:
+          PROXY_LIST: ${{ secrets.PROXY_LIST }}
+          USE_ROTATION: 'true'
+        run: |
+          node scripts/proxy-rotator.js
+        working-directory: ./
+
+      - name: Fetch ChartLink Scanner Data
+        id: scanner
+        env:
+          CHARTINK_TIMEOUT: 15000
+          PARALLEL_REQUESTS: 3
+          MAX_RETRIES: 2
+        run: |
+          node scripts/chartink-scraper.js
+        working-directory: ./
+
+      - name: Process Scanner Results
+        id: process
+        env:
+          ALERT_THRESHOLD: ${{ secrets.ALERT_THRESHOLD || '5' }}
+        run: |
+          node scripts/result-processor.js
+        working-directory: ./
+
+      - name: Send Telegram Alerts
+        id: telegram
+        if: steps.process.outputs.has_alerts == 'true' || github.event.inputs.testMode == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALERT_MESSAGE: ${{ steps.process.outputs.alert_message }}
+        run: |
+          node scripts/telegram-sender.js
+        working-directory: ./
+
+      - name: Log Execution Summary
+        if: always()
+        run: |
+          echo "=== ChartLink Scanner Run Summary ==="
+          echo "Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "Proxy Rotation: ${{ steps.proxy.outputs.proxy_used }}"
+          echo "Scanner Status: ${{ steps.scanner.outputs.status }}"
+          echo "Alerts Sent: ${{ steps.telegram.outputs.sent }}"
+          echo "======================================="
+
+      - name: Retry on Network Failure
+        if: failure() && (steps.scanner.outcome == 'failure' || steps.telegram.outcome == 'failure')
+        run: |
+          echo "Network failure detected. Waiting 30s before retry..."
+          sleep 30
+          exit 1

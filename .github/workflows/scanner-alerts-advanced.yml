@@ -1,0 +1,215 @@
+name: ChartLink Scanner Alerts - Market Hours
+
+on:
+  schedule:
+    # Every 5 minutes during market hours (9:30 AM - 4 PM IST)
+    - cron: '*/5 9-15 * * 1-5'      # Weekdays 9:30 AM - 3:59 PM IST
+    - cron: '*/5 16 * * 1-5'        # Weekdays 4:00 PM - 4:59 PM IST
+  
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Test run (no Telegram sent)'
+        required: false
+        default: 'false'
+      testAlert:
+        description: 'Send test alert'
+        required: false
+        default: 'false'
+
+jobs:
+  check-market-hours:
+    runs-on: ubuntu-latest
+    outputs:
+      is_market_hours: ${{ steps.market.outputs.is_market_hours }}
+      day_of_week: ${{ steps.market.outputs.day_of_week }}
+    
+    steps:
+      - name: Check if Market Hours
+        id: market
+        env:
+          TZ: Asia/Kolkata
+        run: |
+          current_day=$(date +%u)  # 1=Mon, 7=Sun
+          current_hour=$(date +%H)
+          current_min=$(date +%M)
+          is_holiday=$(date +%Y-%m-%d | grep -E '2024-(01-26|03-08|03-25|04-11|04-17|05-23|08-15|09-16|10-02|10-12|11-01|11-15|12-25)' || echo "false")
+          
+          # Market hours: 9:30 AM - 4 PM, Monday-Friday, excluding holidays
+          if [[ $current_day -ge 1 && $current_day -le 5 ]] && [[ $is_holiday == "false" ]]; then
+            if [[ ($current_hour -eq 9 && $current_min -ge 30) || ($current_hour -ge 10 && $current_hour -lt 16) ]]; then
+              echo "is_market_hours=true" >> $GITHUB_OUTPUT
+              echo "✅ Market is OPEN"
+            else
+              echo "is_market_hours=false" >> $GITHUB_OUTPUT
+              echo "🕐 Market is CLOSED (outside 9:30 AM - 4 PM)"
+            fi
+          else
+            echo "is_market_hours=false" >> $GITHUB_OUTPUT
+            if [[ $current_day -eq 6 || $current_day -eq 7 ]]; then
+              echo "📅 Weekend - market closed"
+            else
+              echo "🏖️  Holiday - market closed"
+            fi
+          fi
+          
+          echo "day_of_week=$(date +%A)" >> $GITHUB_OUTPUT
+
+  scanner-alerts:
+    needs: check-market-hours
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    
+    # Skip if not market hours, unless manually triggered
+    if: needs.check-market-hours.outputs.is_market_hours == 'true' || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      matrix:
+        node-version: [18.x]
+    
+    permissions:
+      contents: read
+      repository-projects: read
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --production
+        working-directory: ./scripts
+
+      - name: Validate Configuration
+        id: validate
+        run: |
+          echo "Validating configuration..."
+          node -e "
+            const config = require('./scanners-config.json');
+            const enabledCount = config.scanners.filter(s => s.enabled).length;
+            console.log('✓ Config valid');
+            console.log('✓ Enabled scanners: ' + enabledCount);
+            if (enabledCount === 0) {
+              console.error('⚠️  No scanners enabled!');
+              process.exit(1);
+            }
+          "
+        working-directory: ./
+
+      - name: Rotate Proxy IP Pool
+        id: proxy
+        env:
+          PROXY_LIST: ${{ secrets.PROXY_LIST }}
+          USE_ROTATION: 'true'
+        run: |
+          node scripts/proxy-rotator.js
+        working-directory: ./
+
+      - name: Fetch ChartLink Scanner Data
+        id: scanner
+        env:
+          CHARTINK_TIMEOUT: 15000
+          PARALLEL_REQUESTS: 3
+          MAX_RETRIES: 2
+        run: |
+          node scripts/chartink-scraper.js
+        working-directory: ./
+        continue-on-error: true
+
+      - name: Process Scanner Results
+        id: process
+        env:
+          ALERT_THRESHOLD: ${{ secrets.ALERT_THRESHOLD || '5' }}
+        run: |
+          node scripts/result-processor.js
+        working-directory: ./
+
+      - name: Prepare Test Alert
+        if: github.event.inputs.testAlert == 'true'
+        run: |
+          cat > .github/workflows/alert-message.txt << 'EOF'
+          🧪 *Test Alert - ChartLink Scanner Bot*
+          _Working as expected!_
+          
+          This is a test message to verify Telegram integration is working.
+          
+          📊 Scanner: Test Scanner
+          Count: 15 stocks
+          Status: ✅ Connected
+          
+          Proxy: Rotating ✓
+          Message Format: Markdown ✓
+          Delivery: Live ✓
+          EOF
+          echo "has_alerts=true" >> $GITHUB_OUTPUT
+
+      - name: Send Telegram Alerts
+        id: telegram
+        if: steps.process.outputs.has_alerts == 'true' || github.event.inputs.testAlert == 'true' || github.event.inputs.dryRun == 'false'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node scripts/telegram-sender.js
+        working-directory: ./
+        continue-on-error: ${{ github.event.inputs.dryRun == 'true' }}
+
+      - name: Generate Summary Report
+        if: always()
+        run: |
+          cat > summary.md << 'EOF'
+          # ChartLink Scanner Run Summary
+          
+          **Run Details:**
+          - Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          - Market Status: ${{ needs.check-market-hours.outputs.is_market_hours }}
+          - Day: ${{ needs.check-market-hours.outputs.day_of_week }}
+          
+          **Execution Results:**
+          - Proxy Status: ${{ steps.proxy.outputs.proxy_used }}
+          - Scanner Status: ${{ steps.scanner.outputs.status }}
+          - Alerts Found: ${{ steps.process.outputs.has_alerts }}
+          - Alerts Sent: ${{ steps.telegram.outputs.sent }}
+          
+          **Metrics:**
+          - Scanners Retrieved: ${{ steps.scanner.outputs.retrieved_count }}
+          - Errors: ${{ steps.scanner.outputs.error_count }}
+          - Success Rate: ${{ steps.scanner.outputs.success_rate }}
+          
+          **Message Delivery:**
+          - Message Count: ${{ steps.telegram.outputs.message_count }}
+          - Last Message ID: ${{ steps.telegram.outputs.last_message_id }}
+          EOF
+          cat summary.md
+
+      - name: Save Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanner-run-${{ github.run_id }}
+          path: |
+            .github/workflows/scanner-results.json
+            .github/workflows/processing-stats.json
+            .github/workflows/telegram-logs.json
+            .github/workflows/proxy-state.json
+            summary.md
+          retention-days: 7
+
+      - name: Notify on Failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          message="⚠️ ChartLink Scanner Bot - Execution Failed\\n$(date)\\nCheck GitHub Actions for details."
+          curl -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+            -d chat_id=${TELEGRAM_CHAT_ID} \
+            -d text="${message}" \
+            -d parse_mode="Markdown" || echo "Failed to send error notification"
