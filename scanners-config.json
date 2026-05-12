@@ -1,14 +1,97 @@
-[
-  {
-    "name": "base Breakout",
-    "url": "https://chartink.com/screener/base-breakout-87"
+{
+  "version": "1.0",
+  "lastUpdated": "2024-01-15T10:00:00Z",
+  "scanners": [
+    {
+      "id": "nifty_50_bullish",
+      "name": "Nifty 50 Bullish Breakout",
+      "url": "https://chartink.com/screener/my-scanner-1",
+      "enabled": true,
+      "alertOn": "count_change",
+      "threshold": {
+        "min": 5,
+        "max": 50
+      },
+      "telegramAlert": true,
+      "priority": "HIGH"
+    },
+    {
+      "id": "midcap_momentum",
+      "name": "Midcap Momentum Play",
+      "url": "https://chartink.com/screener/my-scanner-2",
+      "enabled": true,
+      "alertOn": "count_change",
+      "threshold": {
+        "min": 3,
+        "max": 100
+      },
+      "telegramAlert": true,
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "smallcap_breakout",
+      "name": "Smallcap Breakout Scanner",
+      "url": "https://chartink.com/screener/my-scanner-3",
+      "enabled": true,
+      "alertOn": "count_increase",
+      "threshold": {
+        "minIncrease": 2
+      },
+      "telegramAlert": true,
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "options_iv_spike",
+      "name": "Options IV Spike Detector",
+      "url": "https://chartink.com/screener/my-scanner-4",
+      "enabled": true,
+      "alertOn": "threshold_breach",
+      "threshold": {
+        "value": 10
+      },
+      "telegramAlert": true,
+      "priority": "HIGH"
+    }
+  ],
+  "retryPolicy": {
+    "maxAttempts": 2,
+    "backoffMs": 2000,
+    "timeoutMs": 15000
   },
-  {
-    "name": "accumulation by biggies",
-    "url": "https://chartink.com/screener/accumulation-by-biggies-pnp"
+  "proxyRotation": {
+    "enabled": true,
+    "rotateOnRetry": true,
+    "blockedThreshold": 3
   },
-  {
-    "name": "potential bo",
-    "url": "https://chartink.com/screener/potential-breakout-668"
+  "alerts": {
+    "batching": {
+      "enabled": true,
+      "windowSeconds": 300
+    },
+    "formatting": "telegram_markdown",
+    "includeTimestamp": true,
+    "includePreviousCount": true
+  },
+  "scheduling": {
+    "frequencyMinutes": 5,
+    "startHour": 9,
+    "endHour": 16,
+    "timezone": "Asia/Kolkata",
+    "excludeWeekends": true,
+    "excludeHolidays": [
+      "2024-01-26",
+      "2024-03-08",
+      "2024-03-25",
+      "2024-04-11",
+      "2024-04-17",
+      "2024-05-23",
+      "2024-08-15",
+      "2024-09-16",
+      "2024-10-02",
+      "2024-10-12",
+      "2024-11-01",
+      "2024-11-15",
+      "2024-12-25"
+    ]
   }
-]
+}

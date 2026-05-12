@@ -1,12 +1,26 @@
 {
   "name": "chartink-scanner-bot",
   "version": "1.0.0",
-  "description": "5 Min Chartink Scanner with IP Rotation",
+  "description": "ChartLink Scanner Telegram Alert Bot with IP Rotation",
   "main": "index.js",
-  "dependencies": {
-    "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12",
-    "https-proxy-agent": "^7.0.2",
-    "user-agents": "^1.1.25"
+  "type": "module",
+  "scripts": {
+    "start": "node telegram-sender.js",
+    "scrape": "node chartink-scraper.js",
+    "rotate": "node proxy-rotator.js",
+    "process": "node result-processor.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "chartlink",
+    "scanner",
+    "telegram",
+    "alerts",
+    "trading"
+  ],
+  "author": "CodenameP",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  chartink-scanner:
+    build: .
+    container_name: chartink-scanner-bot
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      PROXY_LIST: ${PROXY_LIST:-}
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD:-5}
+      CHARTINK_TIMEOUT: 15000
+      PARALLEL_REQUESTS: 3
+      MAX_RETRIES: 2
+      NODE_ENV: production
+    volumes:
+      - ./scanners-config.json:/app/scanners-config.json:ro
+      - ./scripts:/app:ro
+      - scanner-state:/app/.github/workflows
+    restart: unless-stopped
+    networks:
+      - scanner-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Nginx reverse proxy for health monitoring
+  monitor:
+    image: nginx:alpine
+    container_name: scanner-monitor
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./monitor-dashboard.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - scanner-network
+    depends_on:
+      - chartink-scanner
+
+volumes:
+  scanner-state:
+    driver: local
+
+networks:
+  scanner-network:
+    driver: bridge
