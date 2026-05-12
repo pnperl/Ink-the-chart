@@ -3,8 +3,8 @@
   "lastUpdated": "2024-01-15T10:00:00Z",
   "scanners": [
     {
-      "id": "nifty_50_bullish",
-      "name": "Nifty 50 Bullish Breakout",
+      "id": "BBO",
+      "name": "BASE Breakout",
       "url": "https://chartink.com/screener/base-breakout-87",
       "enabled": true,
       "alertOn": "count_change",
@@ -16,8 +16,8 @@
       "priority": "HIGH"
     },
     {
-      "id": "midcap_momentum",
-      "name": "Midcap Momentum Play",
+      "id": "PBO",
+      "name": "POTENTIAL BO",
       "url": "https://chartink.com/screener/potential-breakout-668",
       "enabled": true,
       "alertOn": "count_change",
@@ -29,8 +29,8 @@
       "priority": "MEDIUM"
     },
     {
-      "id": "smallcap_breakout",
-      "name": "Smallcap Breakout Scanner",
+      "id": "ACCUMULATION",
+      "name": "ACCUMULATION BY BIGGIES",
       "url": "https://chartink.com/screener/accumulation-by-biggies-pnp",
       "enabled": true,
       "alertOn": "count_increase",
