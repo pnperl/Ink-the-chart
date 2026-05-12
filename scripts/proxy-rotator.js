@@ -191,8 +191,7 @@ class ProxyRotator {
 
 function setOutput(name, value) {
   if (process.env.GITHUB_OUTPUT) {
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}
-`);
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
     return;
   }
   console.log(`::set-output name=${name}::${value}`);

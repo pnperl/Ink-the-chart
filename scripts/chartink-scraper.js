@@ -143,7 +143,7 @@ class ChartinkScraper {
 
       for (const strategy of strategies) {
         const count = strategy();
-        if (count !== null && count > 0) {
+        if (count !== null && count >= 0) {
           console.log(
             `✅ Parsed ${scannerName}: ${count} stocks`
           );
@@ -174,17 +174,18 @@ class ChartinkScraper {
       const { html } = await this.fetchWithRetry(scanner.url);
       const count = this.parseStockCount(html, scanner.name);
 
-      if (count !== null) {
-        this.results[scanner.id] = {
-          name: scanner.name,
-          count,
-          timestamp: new Date().toISOString(),
-          url: scanner.url,
-          priority: scanner.priority,
-        };
-      } else {
-        throw new Error('Failed to parse stock count');
+      if (count === null) {
+        console.warn(`⚠️  Defaulting ${scanner.name} count to 0 due to parse miss`);
       }
+
+      this.results[scanner.id] = {
+        name: scanner.name,
+        count: count ?? 0,
+        timestamp: new Date().toISOString(),
+        url: scanner.url,
+        priority: scanner.priority,
+        parsed: count !== null,
+      };
     } catch (err) {
       console.error(
         `❌ Failed to fetch ${scanner.name}:`,
