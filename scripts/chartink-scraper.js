@@ -11,8 +11,12 @@
  * - Error handling and fallback
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const CONFIG = JSON.parse(
   fs.readFileSync(path.join(__dirname, '../scanners-config.json'), 'utf8')
@@ -241,17 +245,23 @@ class ChartinkScraper {
     console.log(`💾 Results saved to ${resultsFile}`);
   }
 
+  setOutput(name, value) {
+    if (process.env.GITHUB_OUTPUT) {
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+      return;
+    }
+    console.log(`::set-output name=${name}::${value}`);
+  }
+
   exportOutputs() {
-    console.log('::set-output name=status::' + (this.errors.length === 0 ? 'success' : 'partial'));
-    console.log(
-      '::set-output name=retrieved_count::' + Object.keys(this.results).length
-    );
-    console.log('::set-output name=error_count::' + this.errors.length);
+    this.setOutput('status', this.errors.length === 0 ? 'success' : 'partial');
+    this.setOutput('retrieved_count', Object.keys(this.results).length);
+    this.setOutput('error_count', this.errors.length);
 
     const successRate = (
       (Object.keys(this.results).length / CONFIG.scanners.filter(s => s.enabled).length) * 100
     ).toFixed(1);
-    console.log('::set-output name=success_rate::' + successRate + '%');
+    this.setOutput('success_rate', successRate + '%');
   }
 }
 
