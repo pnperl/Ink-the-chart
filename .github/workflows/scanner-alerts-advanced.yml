@@ -1,4 +1,4 @@
-name: ChartLink Scanner Alerts - Market Hours
+name: ChartLink Scanner Alerts - Market Hours advanced
 
 on:
   schedule:
@@ -82,6 +82,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+          cache-dependency-path: './package-lock.json'
 
       - name: Install Dependencies
         run: npm install --production
